@@ -1,0 +1,44 @@
+# 输出和日志
+outputs/
+logs/
+*.log
+
+# 模型文件（太大）
+models/
+*.bin
+*.pt
+*.pth
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 缓存
+.cache/
+.huggingface/
+.cache
+
+# 临时文件
+*.tmp
+nul

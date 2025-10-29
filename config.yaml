@@ -1,0 +1,97 @@
+# ATCOSIM Speech Recognition Configuration
+# 平衡精度与速度的生产级配置
+
+## 数据配置
+data:
+  dataset_dir: "d:\\NPU_works\\语音\\demo\\ATCOSIM"
+  csv_path: "TXTdata/fulldata.csv"
+  wordlist_path: "TXTdata/wordlist.txt"
+  wav_dir: "WAVdata"
+  txt_dir: "TXTdata"
+
+  # 数据集划分
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+
+  # 音频预处理
+  sample_rate: 16000
+  target_sr: 16000
+  mono: true
+  normalize: true
+
+  # 数据增强
+  augmentation:
+    enabled: true
+    speed_perturb: [0.9, 1.1]
+    noise_prob: 0.3
+    noise_scale: 0.1
+
+## 模型配置
+model:
+  # Whisper-base: 精度74-80%, 推理快, 显存占用小
+  # Wav2Vec2-base: 精度78-85%, 推理稍慢, 显存占用中等
+  type: "whisper"  # whisper | wav2vec2
+  whisper_size: "base"  # tiny|base|small|medium|large
+
+  # Wav2Vec2 配置（备选）
+  wav2vec2_model: "facebook/wav2vec2-base-960h"
+
+  # 模型约束
+  use_atc_vocab_constraint: true
+  vocab_constraint_type: "beam_search"  # beam_search | shallow_fusion
+
+## 训练配置
+training:
+  epochs: 10
+  batch_size: 4  # 降至4以避免RTX 5060 OOM (8GB显存)
+  gradient_accumulation_steps: 4  # 增至4保持有效batch_size=16
+  learning_rate: 1e-5
+  weight_decay: 0.01
+  warmup_steps: 500
+
+  # 多GPU配置
+  distributed: true
+  device_ids: [0]  # RTX 5060 Laptop
+  ddp_backend: "nccl"
+
+  # 优化器
+  optimizer: "adamw"
+  scheduler: "linear"
+
+  # 早停
+  early_stopping_patience: 3
+  eval_steps: 1000  # 增至1000降低评估时显存压力
+  save_strategy: "steps"
+  save_steps: 1000  # 增至1000
+
+## 推理配置
+inference:
+  beam_size: 5
+  max_length: 224
+  language: "en"
+  task: "transcribe"
+  temperature: 0.0
+
+  # 实时处理
+  chunk_length_s: 30  # 流式处理的块大小
+  stride_length_s: 5
+
+## 评估指标
+evaluation:
+  metrics: ["wer", "cer", "bleu"]
+  compute_metrics: true
+
+## 输出配置
+output:
+  output_dir: "d:\\NPU_works\\语音\\demo\\outputs"
+  model_save_dir: "d:\\NPU_works\\语音\\demo\\models"
+  log_dir: "d:\\NPU_works\\语音\\demo\\logs"
+
+## 系统配置
+system:
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: "fp16"  # fp16 | bf16 | no
+  max_grad_norm: 1.0

@@ -1,0 +1,11 @@
+*** ATCOSIM License and Disclaimer ***
+
+The ATCOSIM corpus is copyright independently by EUROCONTROL Experimental Centre and Graz University of Technology. Those parts of the corpus, to which no copyright can be applied, are protected by the European sui generis database right (Council Directive No. 96/9/EC of 11 March 1996). All rights reserved.
+
+Permission is granted to the European Language Resources Association (ELRA) and its subsidiaries to distribute the corpus on behalf of the copyright holders.
+
+The ATCOSIM corpus is provided free of charge, except for potential shipping and handling costs. It is permitted to use the corpus for research and development, also in a commercial environment. It is also allowed to re-distribute the ATCOSIM corpus within the own organisation, given that this copyright notice is included.
+
+While every effort is made by the authors to ensure that accurate information is disseminated through this corpus, the publishers, i.e. the authors, Graz University of Technology and the EUROCONTROL Agency, make no representation about the content and suitability of this corpus for any purpose. It is provided 'as is' without express or implied warranty. The publishers disclaim all warranties with regard to this database, including all implied warranties or merchantability and fitness. In no event shall the authors be liable for any special indirect or consequential damages or any damages whatsoever resulting from loss of income or profits, whether in an action of contract, negligence or other tortious action, arising in connection with the use or performance of this database.
+
+In particular, it shall be noted that due to the age of the recordings and the given simulation context the language contained in this corpus may not strictly adhere to any official or legal air traffic control phraseology. The corpus is thus not suitable for the training or appraisal of personnel involved in operational air traffic control, such as for air traffic control operator or pilot training.

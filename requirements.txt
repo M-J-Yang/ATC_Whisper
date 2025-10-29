@@ -1,0 +1,35 @@
+# ATCOSIM Speech Recognition Requirements
+# Python 3.10 or 3.11
+
+# Core dependencies - IMPORTANT: versions must match for torch/torchaudio
+
+transformers==4.37.0
+accelerate==0.27.0
+
+# Data processing - IMPORTANT: numpy must be <2.0 for scipy compatibility
+numpy==1.24.3
+pandas==2.1.0
+scipy==1.11.0
+pyarrow==14.0.1
+datasets==2.18.0
+
+# Audio processing
+librosa==0.10.0
+soundfile==0.12.1
+pydub==0.25.1
+
+# Speech recognition specific
+openai-whisper==20231106
+jiwer==3.0.2
+editdistance==0.6.2
+
+# Utilities
+pyyaml==6.0
+tqdm==4.66.0
+tensorboard==2.14.0
+wandb==0.16.0
+
+# Development (optional)
+pytest>=7.4.0
+black>=23.11.0
+flake8>=6.1.0
