@@ -1,369 +1,232 @@
 """
-Whisper模型微调训练脚本 - 支持2张4090 GPU
-使用HuggingFace Transformers和Accelerate进行分布式训练
+Whisper 微调训练脚本（支持分布式 + fp16 + 缓存优化）
+适配 RTX 3090 / HuggingFace Transformers >= 4.44
 """
 
 import os
 import json
 import torch
 import numpy as np
-from pathlib import Path
-from typing import Dict, Any
-import logging
-from dataclasses import dataclass
-from functools import partial
-import yaml
-import librosa
-
-import transformers
+import argparse
+from datasets import load_from_disk
 from transformers import (
     WhisperProcessor,
     WhisperForConditionalGeneration,
-    Seq2SeqTrainingArguments,
     Seq2SeqTrainer,
-    get_linear_schedule_with_warmup
+    Seq2SeqTrainingArguments,
 )
-from datasets import Dataset, DatasetDict, load_from_disk
-from datasets import Audio
-import evaluate
-from tqdm import tqdm
+from evaluate import load as load_metric
+from dataclasses import dataclass
+from typing import Dict, Any, List, Union
+import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 解析命令行参数
+parser = argparse.ArgumentParser(description="Whisper 微调训练")
+parser.add_argument("--unfreeze-encoder-layers", type=int, default=0,
+                    help="解冻 encoder 的最后 N 层进行训练 (0=全部冻结)")
+args = parser.parse_args()
 
+# ======================================
+# Data Collator for Speech Seq2Seq
+# ======================================
 @dataclass
-class DataCollatorSpeechSeq2Seq:
-    """用于Seq2Seq语音识别的数据整理器"""
-    processor: WhisperProcessor
+class DataCollatorSpeechSeq2SeqWithPadding:
+    """数据整理器：动态 padding 音频特征和文本标签（特征已预提取）"""
+    processor: Any
 
-    def __call__(self, features):
-        # features 已经包含预处理的 input_features 和 labels
-        # 直接堆叠即可
+    def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
+        # 特征已经是 list 格式，需要转换为 tensor
+        # input_features: (batch_size, 80, 3000) - mel spectrogram
+        input_features = [torch.tensor(feature["input_features"]) for feature in features]
+        label_features = [torch.tensor(feature["labels"]) for feature in features]
 
-        # 提取输入特征
-        input_features = [{"input_features": item["input_features"]} for item in features]
+        # Pad 音频特征到相同长度
+        batch = {}
+        batch["input_features"] = torch.stack(input_features)
 
-        batch = self.processor.feature_extractor.pad(
-            input_features,
-            return_tensors="pt"
-        )
+        # Pad 标签到相同长度
+        max_label_length = max(len(l) for l in label_features)
+        padded_labels = []
+        for labels in label_features:
+            padding_length = max_label_length - len(labels)
+            if padding_length > 0:
+                padded_labels.append(torch.cat([
+                    labels,
+                    torch.full((padding_length,), -100, dtype=labels.dtype)
+                ]))
+            else:
+                padded_labels.append(labels)
 
-        # 处理标签
-        label_features = [{"input_ids": item["labels"]} for item in features]
+        labels = torch.stack(padded_labels)
 
-        labels_batch = self.processor.tokenizer.pad(
-            label_features,
-            return_tensors="pt"
-        )
-
-        # 用-100替换padding token ID，这样在损失计算中会被忽略
-        labels = labels_batch["input_ids"].masked_fill(
-            labels_batch.attention_mask.ne(1),
-            -100
-        )
+        # 如果所有序列都以 bos token 开头，移除它（Whisper 不需要）
+        if (labels[:, 0] == self.processor.tokenizer.bos_token_id).all():
+            labels = labels[:, 1:]
 
         batch["labels"] = labels
 
         return batch
 
+# ======================================
+# ✅ 1. 加载配置
+# ======================================
+CONFIG_PATH = "./config.yaml"
+import yaml
+with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
 
-class WhisperTrainer:
-    """Whisper模型训练器"""
+device = "cuda" if torch.cuda.is_available() else "cpu"
+logger.info(f"使用设备: {device}")
 
-    def __init__(self, config_path: str = "config.yaml"):
-        """初始化训练器"""
-        with open(config_path, "r", encoding="utf-8") as f:
-            self.config = yaml.safe_load(f)
+# ======================================
+# ✅ 2. 加载模型与处理器
+# ======================================
+# 根据配置构建模型名称
+model_type = config["model"]["type"]
+if model_type == "whisper":
+    whisper_size = config["model"]["whisper_size"]
+    model_name = f"openai/whisper-{whisper_size}"
+else:
+    raise ValueError(f"不支持的模型类型: {model_type}")
 
-        self.output_dir = Path(self.config["output"]["output_dir"])
-        self.model_dir = Path(self.config["output"]["model_save_dir"])
-        self.log_dir = Path(self.config["output"]["log_dir"])
+logger.info(f"加载模型 {model_name}...")
+processor = WhisperProcessor.from_pretrained(model_name)
+model = WhisperForConditionalGeneration.from_pretrained(model_name)
 
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.model_dir.mkdir(parents=True, exist_ok=True)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+# 冻结/解冻 encoder 层
+if args.unfreeze_encoder_layers > 0:
+    logger.info(f"冻结 encoder，仅解冻最后 {args.unfreeze_encoder_layers} 层")
+    # 冻结所有 encoder 参数
+    for param in model.model.encoder.parameters():
+        param.requires_grad = False
+    # 解冻最后 N 层
+    total_layers = len(model.model.encoder.layers)
+    for i in range(total_layers - args.unfreeze_encoder_layers, total_layers):
+        for param in model.model.encoder.layers[i].parameters():
+            param.requires_grad = True
+    logger.info(f"  - Encoder 总层数: {total_layers}")
+    logger.info(f"  - 解冻层: {total_layers - args.unfreeze_encoder_layers} 到 {total_layers - 1}")
+elif args.unfreeze_encoder_layers == 0:
+    logger.info("冻结整个 encoder，仅训练 decoder")
+    for param in model.model.encoder.parameters():
+        param.requires_grad = False
+else:
+    logger.info("训练整个模型（encoder + decoder）")
 
-        logger.info(f"输出目录: {self.output_dir}")
-        logger.info(f"模型保存目录: {self.model_dir}")
+model.to(device)
 
-    def load_dataset(self):
-        """加载预处理的数据集"""
-        processed_dir = self.output_dir / "processed_data"
+# ======================================
+# ✅ 3. 加载数据集（从缓存，特征已预提取）
+# ======================================
+logger.info("从缓存加载数据集（特征已预提取）...")
+# 使用 output_dir + processed_data 路径
+dataset_path = os.path.join(config["output"]["output_dir"], "processed_data")
+logger.info(f"数据集路径: {dataset_path}")
+dataset = load_from_disk(dataset_path)
 
-        logger.info(f"从 {processed_dir} 加载数据集...")
+# 数据集已包含 input_features 和 labels，无需再处理
+logger.info("✅ 数据集加载完成，特征已预提取")
+logger.info(f"   - 训练集: {len(dataset['train'])} 条")
+logger.info(f"   - 验证集: {len(dataset['val'])} 条")
+logger.info(f"   - 测试集: {len(dataset['test'])} 条")
 
-        datasets_dict = {}
-        for split in ["train", "val", "test"]:
-            split_dir = processed_dir / split
-            manifest_path = split_dir / f"{split}_manifest.json"
+# ======================================
+# ✅ 4. 定义评估指标
+# ======================================
+wer_metric = load_metric("wer")
 
-            if not manifest_path.exists():
-                logger.error(f"找不到 {manifest_path}")
-                raise FileNotFoundError(f"找不到 {manifest_path}")
+def compute_metrics(pred):
+    pred_ids = pred.predictions
+    if isinstance(pred_ids, tuple):  # 🔧 修复 tuple 错误
+        pred_ids = pred_ids[0]
 
-            with open(manifest_path, "r", encoding="utf-8") as f:
-                manifest = json.load(f)
+    label_ids = pred.label_ids
+    pred_ids = np.where(pred_ids == -100, processor.tokenizer.pad_token_id, pred_ids)
+    label_ids = np.where(label_ids == -100, processor.tokenizer.pad_token_id, label_ids)
 
-            # 转换为HuggingFace Dataset格式
-            def gen():
-                for item in manifest:
-                    yield {
-                        "audio": {
-                            "path": item["audio_path"],
-                            "array": None,
-                            "sampling_rate": self.config["data"]["target_sr"]
-                        },
-                        "text": item["text"],
-                        "speaker_id": item["speaker_id"],
-                        "duration": item["duration"]
-                    }
+    pred_str = processor.batch_decode(pred_ids, skip_special_tokens=True)
+    label_str = processor.batch_decode(label_ids, skip_special_tokens=True)
 
-            dataset = Dataset.from_generator(gen)
+    wer = wer_metric.compute(predictions=pred_str, references=label_str)
+    return {"wer": wer}
 
-            # 加载音频 - 使用librosa避免torchcodec依赖
-            def load_audio(sample):
-                try:
-                    # 使用librosa加载，自动重采样到目标采样率
-                    audio_array, sr = librosa.load(
-                        sample["audio"]["path"],
-                        sr=self.config["data"]["target_sr"],
-                        mono=True
-                    )
-                except Exception as e:
-                    logger.error(f"加载音频失败 {sample['audio']['path']}: {e}")
-                    raise
+# ======================================
+# ✅ 5. 训练参数
+# ======================================
+train_args = config["training"]
+output_dir = config["output"]["output_dir"]
 
-                return {
-                    "audio": {
-                        "array": audio_array,
-                        "sampling_rate": sr
-                    },
-                    "text": sample["text"],
-                    "speaker_id": sample["speaker_id"],
-                    "duration": sample["duration"]
-                }
+# 确保数值类型正确（从 YAML 读取可能是字符串）
+learning_rate = float(train_args["learning_rate"])
+weight_decay = float(train_args["weight_decay"])
+batch_size = int(train_args["batch_size"])
+gradient_accumulation_steps = int(train_args["gradient_accumulation_steps"])
+warmup_steps = int(train_args["warmup_steps"])
+num_train_epochs = int(train_args["epochs"])
 
-            dataset = dataset.map(
-                load_audio,
-                num_proc=self.config["system"]["num_workers"],
-                desc=f"加载 {split} 音频"
-            )
+training_args = Seq2SeqTrainingArguments(
+    output_dir=output_dir,
+    per_device_train_batch_size=batch_size,
+    per_device_eval_batch_size=batch_size,
+    gradient_accumulation_steps=gradient_accumulation_steps,
+    evaluation_strategy="epoch",
+    save_strategy="epoch",
+    learning_rate=learning_rate,
+    weight_decay=weight_decay,
+    warmup_steps=warmup_steps,
+    num_train_epochs=num_train_epochs,
+    logging_dir=os.path.join(output_dir, "logs"),
+    logging_steps=100,
+    save_total_limit=2,
+    predict_with_generate=True,  # ✅ 必须为 True 才能在评估时生成文本
+    fp16=True,
+    gradient_checkpointing=False,
+    dataloader_num_workers=int(config["system"]["num_workers"]),
+    dataloader_pin_memory=bool(config["system"]["pin_memory"]),
+    report_to="none",
+    generation_max_length=225,
+)
 
-            datasets_dict[split] = dataset
-            logger.info(f"{split}: {len(dataset)} 条样本")
-
-        return DatasetDict(datasets_dict)
-
-    def prepare_dataset(self, dataset: DatasetDict, processor: WhisperProcessor):
-        """准备数据集特征"""
-        logger.info("正在准备数据集特征...")
-
-        def prepare_dataset_fn(batch):
-            # 处理音频
-            audio = batch["audio"]
-
-            inputs = processor(
-                audio["array"],
-                sampling_rate=audio["sampling_rate"],
-                language="en"
-            )
-
-            batch["input_features"] = inputs.input_features[0]
-            batch["labels"] = processor.tokenizer(batch["text"]).input_ids
-
-            return batch
-
-        dataset = dataset.map(
-            prepare_dataset_fn,
-            remove_columns=["audio", "speaker_id"],
-            num_proc=self.config["system"]["num_workers"],
-            desc="准备特征"
-        )
-
-        return dataset
-
-    def compute_metrics(self, pred, processor: WhisperProcessor):
-        """计算WER (Word Error Rate)"""
-        wer = evaluate.load("wer")
-        pred_ids = pred.predictions
-        label_ids = pred.label_ids
-
-        # 解码预测和标签
-        pred_ids[pred_ids == -100] = processor.tokenizer.pad_token_id
-        pred_str = processor.batch_decode(pred_ids, skip_special_tokens=True)
-
-        label_ids[label_ids == -100] = processor.tokenizer.pad_token_id
-        label_str = processor.batch_decode(label_ids, skip_special_tokens=True)
-
-        # 计算WER
-        wer_score = wer.compute(predictions=pred_str, references=label_str)
-
-        return {"wer": wer_score}
-
-    def train(self, unfreeze_encoder_layers: int = 0, use_adapter: bool = False):
-        """执行训练流程
-
-        Args:
-            unfreeze_encoder_layers: 解冻编码器的层数 (0=冻结, -1=全部)
-            use_adapter: 是否使用Adapter层
-        """
-        logger.info("=" * 60)
-        logger.info("开始Whisper模型微调")
-        logger.info(f"参数: unfreeze_encoder_layers={unfreeze_encoder_layers}, use_adapter={use_adapter}")
-        logger.info("=" * 60)
-
-        # 1. 加载预训练模型和处理器
-        model_name = f"openai/whisper-{self.config['model']['whisper_size']}"
-        logger.info(f"加载模型: {model_name}")
-
-        processor = WhisperProcessor.from_pretrained(model_name, language="English", task="transcribe")
-        model = WhisperForConditionalGeneration.from_pretrained(model_name)
-
-        # 处理编码器冻结策略
-        try:
-            encoder = None
-            if hasattr(model, 'encoder'):
-                encoder = model.encoder
-            elif hasattr(model, 'model') and hasattr(model.model, 'encoder'):
-                encoder = model.model.encoder
-
-            if encoder is None:
-                logger.warning("无法找到编码器")
-            else:
-                if unfreeze_encoder_layers == -1:
-                    # 解冻所有层
-                    encoder.requires_grad_(True)
-                    logger.info("✓ 解冻所有编码器层")
-                elif unfreeze_encoder_layers > 0:
-                    # 冻结所有层，然后解冻最后N层
-                    encoder.requires_grad_(False)
-                    encoder_layers = list(encoder.children())
-                    num_layers = len(encoder_layers)
-                    unfreeze_from = max(0, num_layers - unfreeze_encoder_layers)
-
-                    for i, layer in enumerate(encoder_layers):
-                        if i >= unfreeze_from:
-                            layer.requires_grad_(True)
-                    logger.info(f"✓ 解冻最后 {unfreeze_encoder_layers} 层编码器 (共 {num_layers} 层)")
-                else:
-                    # 冻结所有编码器层
-                    encoder.requires_grad_(False)
-                    logger.info("✓ 冻结所有编码器层")
-        except Exception as e:
-            logger.warning(f"处理编码器失败: {e}，将对整个模型进行微调")
-
-        # 2. 加载数据集
-        datasets = self.load_dataset()
-
-        # 3. 准备数据集
-        prepared_datasets = self.prepare_dataset(datasets, processor)
-
-        # 检查CUDA可用性
-        cuda_available = torch.cuda.is_available()
-        logger.info(f"CUDA可用: {cuda_available}")
-
-        if cuda_available:
-            logger.info(f"GPU数量: {torch.cuda.device_count()}")
-            logger.info(f"当前GPU: {torch.cuda.get_device_name(0)}")
-
-        # 4. 定义训练参数
-        # 注意：FP16在Windows或某些GPU上可能有兼容性问题，禁用FP16以确保稳定性
-        training_args = Seq2SeqTrainingArguments(
-            output_dir=str(self.model_dir),
-            per_device_train_batch_size=self.config["training"]["batch_size"],
-            per_device_eval_batch_size=self.config["training"]["batch_size"],
-            gradient_accumulation_steps=self.config["training"]["gradient_accumulation_steps"],
-            learning_rate=float(self.config["training"]["learning_rate"]),  # 确保是浮点数
-            num_train_epochs=self.config["training"]["epochs"],
-            warmup_steps=self.config["training"]["warmup_steps"],
-            weight_decay=self.config["training"]["weight_decay"],
-
-            # 多GPU配置
-            ddp_find_unused_parameters=False,
-            ddp_backend="nccl" if (self.config["training"]["distributed"] and cuda_available) else None,
-
-            # 评估和保存策略
-            evaluation_strategy="steps",
-            eval_steps=self.config["training"]["eval_steps"],
-            save_strategy="steps",
-            save_steps=self.config["training"]["save_steps"],
-            load_best_model_at_end=True,
-            metric_for_best_model="wer",
-            greater_is_better=False,
-            save_total_limit=3,
-
-            # 优化器
-            optim="adamw_torch",
-            max_grad_norm=self.config["system"]["max_grad_norm"],
-
-            # 日志
-            logging_steps=100,
-            logging_dir=str(self.log_dir),
-            report_to="tensorboard",
-
-            # 混合精度 - 在Windows上禁用FP16以避免兼容性问题
-            # 使用标准精度(FP32)训练，但显存占用更多
-            fp16=False,
-            bf16=False,
-
-            # 推送到Hub
-            push_to_hub=False,
-            seed=self.config["system"]["seed"],
-        )
-
-        logger.info("训练参数: FP16=False, BF16=False (标准FP32精度)")
-
-        # 5. 初始化数据整理器
-        data_collator = DataCollatorSpeechSeq2Seq(processor=processor)
-
-        # 6. 创建训练器
-        trainer = Seq2SeqTrainer(
-            model=model,
-            args=training_args,
-            train_dataset=prepared_datasets["train"],
-            eval_dataset=prepared_datasets["val"],
-            data_collator=data_collator,
-            compute_metrics=partial(self.compute_metrics, processor=processor),
-            tokenizer=processor.tokenizer,
-        )
-
-        # 7. 开始训练
-        logger.info("开始训练...")
-        trainer.train()
-
-        # 8. 保存最终模型
-        logger.info(f"保存最终模型到 {self.model_dir}")
-        trainer.save_model(str(self.model_dir / "final_model"))
-        processor.save_pretrained(str(self.model_dir / "final_model"))
-
-        logger.info("=" * 60)
-        logger.info("训练完成！")
-        logger.info(f"最佳模型: {self.model_dir}")
-        logger.info("=" * 60)
+logger.info(f"训练配置:")
+logger.info(f"  - Batch size: {batch_size}")
+logger.info(f"  - Gradient accumulation: {gradient_accumulation_steps}")
+logger.info(f"  - Effective batch size: {batch_size * gradient_accumulation_steps}")
+logger.info(f"  - Learning rate: {learning_rate}")
+logger.info(f"  - Epochs: {num_train_epochs}")
 
 
-def main():
-    """主函数"""
-    import argparse
+# ======================================
+# ✅ 6. 构建 Trainer
+# ======================================
+# 创建 data collator
+data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
-    parser = argparse.ArgumentParser(description="Whisper模型微调训练")
-    parser.add_argument("--config", type=str, default="config.yaml", help="配置文件路径")
-    parser.add_argument("--unfreeze-encoder-layers", type=int, default=0,
-                        help="解冻最后N层编码器 (0=仅微调解码器, -1=所有层)")
-    parser.add_argument("--use-adapter", action="store_true", help="使用Adapter层替代全量微调")
+trainer = Seq2SeqTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=dataset["train"],
+    eval_dataset=dataset["val"],
+    data_collator=data_collator,  # ✅ 使用正确的 data collator
+    tokenizer=processor.tokenizer,  # ✅ 传入 tokenizer（用于保存）
+    compute_metrics=compute_metrics,
+)
 
-    args = parser.parse_args()
+# ======================================
+# ✅ 7. 启动训练
+# ======================================
+logger.info("=" * 60)
+logger.info("开始训练...")
+logger.info("=" * 60)
+trainer.train()
 
-    trainer = WhisperTrainer(config_path=args.config)
-
-    # 如果指定了unfreeze层数，修改模型冻结策略
-    if args.unfreeze_encoder_layers != 0:
-        logger.info(f"将解冻编码器的最后 {args.unfreeze_encoder_layers} 层")
-        # 这个在train()方法中实现
-
-    trainer.train(unfreeze_encoder_layers=args.unfreeze_encoder_layers, use_adapter=args.use_adapter)
-
-
-if __name__ == "__main__":
-    main()
+# ======================================
+# ✅ 8. 保存模型
+# ======================================
+logger.info("训练完成，保存模型...")
+final_model_path = os.path.join(config["output"]["output_dir"], "final_model")
+trainer.save_model(final_model_path)
+processor.save_pretrained(final_model_path)
+logger.info(f"✅ 模型已保存到: {final_model_path}")

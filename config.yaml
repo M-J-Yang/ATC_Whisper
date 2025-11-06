@@ -3,7 +3,7 @@
 
 ## 数据配置
 data:
-  dataset_dir: "d:\\NPU_works\\语音\\demo\\ATCOSIM"
+  dataset_dir: "ATCOSIM/"
   csv_path: "TXTdata/fulldata.csv"
   wordlist_path: "TXTdata/wordlist.txt"
   wav_dir: "WAVdata"
@@ -44,26 +44,26 @@ model:
 ## 训练配置
 training:
   epochs: 10
-  batch_size: 4  # 降至4以避免RTX 5060 OOM (8GB显存)
-  gradient_accumulation_steps: 4  # 增至4保持有效batch_size=16
+  batch_size: 16                   # 从16升到32，3090显存完全够
+  gradient_accumulation_steps: 2   # 累积2次梯度，相当于有效batch=64
   learning_rate: 1e-5
   weight_decay: 0.01
   warmup_steps: 500
 
-  # 多GPU配置
-  distributed: true
-  device_ids: [0]  # RTX 5060 Laptop
+  # 单卡训练即可，3090一张就能跑得很稳
+  distributed: false
+  device_ids: [0]
   ddp_backend: "nccl"
 
-  # 优化器
-  optimizer: "adamw"
+  # 优化器与调度器
+  optimizer: "adamw_torch"
   scheduler: "linear"
 
-  # 早停
+  # 早停与保存策略
   early_stopping_patience: 3
-  eval_steps: 1000  # 增至1000降低评估时显存压力
+  eval_steps: 500                  # 稍微频繁一点，有助于观察收敛
   save_strategy: "steps"
-  save_steps: 1000  # 增至1000
+  save_steps: 500                  # 与eval同步
 
 ## 推理配置
 inference:
@@ -84,14 +84,14 @@ evaluation:
 
 ## 输出配置
 output:
-  output_dir: "d:\\NPU_works\\语音\\demo\\outputs"
-  model_save_dir: "d:\\NPU_works\\语音\\demo\\models"
-  log_dir: "d:\\NPU_works\\语音\\demo\\logs"
+  output_dir: "outputs"
+  model_save_dir: "models"
+  log_dir: "logs"
 
 ## 系统配置
 system:
   seed: 42
-  num_workers: 4
+  num_workers: 8
   pin_memory: true
   mixed_precision: "fp16"  # fp16 | bf16 | no
   max_grad_norm: 1.0

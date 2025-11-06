@@ -15,6 +15,8 @@ from typing import Dict, List, Tuple
 import logging
 from tqdm import tqdm
 import yaml
+from datasets import Dataset, DatasetDict
+from transformers import WhisperProcessor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +36,17 @@ class ATCOSIMProcessor:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.sample_rate = self.config["data"]["target_sr"]
+
+        # 加载 Whisper Processor 用于特征提取
+        model_type = self.config["model"]["type"]
+        if model_type == "whisper":
+            whisper_size = self.config["model"]["whisper_size"]
+            model_name = f"openai/whisper-{whisper_size}"
+            logger.info(f"加载 Whisper Processor: {model_name}")
+            self.processor = WhisperProcessor.from_pretrained(model_name)
+        else:
+            self.processor = None
+
         logger.info(f"数据集目录: {self.dataset_dir}")
         logger.info(f"输出目录: {self.output_dir}")
 
@@ -253,45 +266,128 @@ class ATCOSIMProcessor:
 
         return train_data, val_data, test_data
 
-    def save_processed_data(self, dataset: List[Dict], split: str):
-        """保存处理后的数据集"""
-        split_dir = self.output_dir / split
-        split_dir.mkdir(parents=True, exist_ok=True)
+    def save_processed_data_huggingface(self, train_data: List[Dict], val_data: List[Dict], test_data: List[Dict]):
+        """保存为 HuggingFace Datasets 格式（最快训练速度）
 
-        manifest = []
+        预先提取 mel spectrogram 特征和 tokenize 文本，训练时零开销
+        采用分批处理策略避免 OOM
+        """
+        logger.info("正在创建 HuggingFace Datasets（预提取特征）...")
 
-        logger.info(f"正在保存 {split} 数据集...")
+        def create_dataset_batched(data: List[Dict], split_name: str, batch_size: int = 500) -> Dataset:
+            """分批提取特征并创建 Dataset，避免内存溢出"""
+            logger.info(f"处理 {split_name} 数据集 ({len(data)} 条)，批次大小={batch_size}")
 
-        for item in tqdm(dataset):
-            # 保存音频
-            audio_filename = f"{item['recording_id']}.wav"
-            audio_path = split_dir / audio_filename
+            all_datasets = []
 
-            sf.write(str(audio_path), item["audio_data"], self.sample_rate)
+            # 分批处理
+            for batch_idx in range(0, len(data), batch_size):
+                batch_data = data[batch_idx:batch_idx + batch_size]
+                batch_num = batch_idx // batch_size + 1
+                total_batches = (len(data) + batch_size - 1) // batch_size
 
-            # 创建清单项
-            manifest_item = {
-                "audio_path": str(audio_path),
-                "text": item["text"],
-                "speaker_id": item["speaker_id"],
-                "session_id": item["session_id"],
-                "utterance_id": item["utterance_id"],
-                "duration": item["duration"]
-            }
+                logger.info(f"处理批次 {batch_num}/{total_batches} ({len(batch_data)} 条)...")
 
-            manifest.append(manifest_item)
+                # 准备数据字典
+                dataset_dict = {
+                    "input_features": [],
+                    "labels": [],
+                    "text": [],
+                    "speaker_id": [],
+                    "duration": []
+                }
 
-        # 保存JSON清单
-        manifest_path = split_dir / f"{split}_manifest.json"
-        with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, ensure_ascii=False, indent=2)
+                for item in tqdm(batch_data, desc=f"批次 {batch_num}/{total_batches}"):
+                    try:
+                        # 提取音频的 mel spectrogram 特征
+                        audio_array = item["audio_data"]
+                        inputs = self.processor.feature_extractor(
+                            audio_array,
+                            sampling_rate=self.sample_rate,
+                            return_tensors="np"
+                        )
 
-        logger.info(f"已保存 {len(manifest)} 条记录到 {split_dir}")
+                        # Tokenize 文本标签
+                        labels = self.processor.tokenizer(
+                            item["text"],
+                            return_tensors="np"
+                        )
+
+                        # 存储特征（转为 list 以便序列化）
+                        dataset_dict["input_features"].append(inputs.input_features[0].tolist())
+                        dataset_dict["labels"].append(labels.input_ids[0].tolist())
+                        dataset_dict["text"].append(item["text"])
+                        dataset_dict["speaker_id"].append(item["speaker_id"])
+                        dataset_dict["duration"].append(item["duration"])
+
+                    except Exception as e:
+                        logger.warning(f"处理失败: {item.get('recording_id', 'unknown')}, 错误: {e}")
+                        continue
+
+                # 创建当前批次的 Dataset
+                batch_dataset = Dataset.from_dict(dataset_dict)
+                all_datasets.append(batch_dataset)
+
+                # 释放内存
+                del dataset_dict, batch_data
+                import gc
+                gc.collect()
+
+            # 合并所有批次
+            logger.info(f"合并 {len(all_datasets)} 个批次...")
+            from datasets import concatenate_datasets
+            final_dataset = concatenate_datasets(all_datasets)
+
+            # 释放内存
+            del all_datasets
+            import gc
+            gc.collect()
+
+            return final_dataset
+
+        # 分批创建三个子数据集
+        # 根据系统内存调整 batch_size：
+        # - 90GB+ 内存: batch_size=2000 (约 4 批次，快速)
+        # - 32GB 内存: batch_size=1000 (约 8 批次，平衡)
+        # - 16GB 内存: batch_size=500 (约 16 批次，安全)
+        logger.info("=" * 60)
+        train_dataset = create_dataset_batched(train_data, "train", batch_size=2000)
+        del train_data
+        import gc
+        gc.collect()
+
+        logger.info("=" * 60)
+        val_dataset = create_dataset_batched(val_data, "val", batch_size=1000)
+        del val_data
+        gc.collect()
+
+        logger.info("=" * 60)
+        test_dataset = create_dataset_batched(test_data, "test", batch_size=1000)
+        del test_data
+        gc.collect()
+
+        # 组合成 DatasetDict
+        dataset_dict = DatasetDict({
+            "train": train_dataset,
+            "val": val_dataset,
+            "test": test_dataset
+        })
+
+        # 保存到磁盘
+        logger.info("=" * 60)
+        logger.info(f"保存数据集到 {self.output_dir}...")
+        dataset_dict.save_to_disk(str(self.output_dir))
+
+        logger.info(f"✅ 数据集已保存为 HuggingFace 格式（特征已预提取）")
+        logger.info(f"   - train: {len(train_dataset)} 条")
+        logger.info(f"   - val: {len(val_dataset)} 条")
+        logger.info(f"   - test: {len(test_dataset)} 条")
+        logger.info(f"   - 路径: {self.output_dir}")
 
     def process(self):
         """执行完整的数据处理流程"""
         logger.info("=" * 60)
-        logger.info("开始ATCOSIM数据处理")
+        logger.info("开始ATCOSIM数据处理 (HuggingFace Datasets 格式)")
         logger.info("=" * 60)
 
         # 1. 加载元数据
@@ -306,13 +402,11 @@ class ATCOSIMProcessor:
         # 4. 划分数据集
         train_data, val_data, test_data = self.split_dataset(dataset)
 
-        # 5. 保存处理后的数据
-        self.save_processed_data(train_data, "train")
-        self.save_processed_data(val_data, "val")
-        self.save_processed_data(test_data, "test")
+        # 5. 保存为 HuggingFace Datasets 格式（最优性能）
+        self.save_processed_data_huggingface(train_data, val_data, test_data)
 
         logger.info("=" * 60)
-        logger.info("数据处理完成！")
+        logger.info("✅ 数据处理完成！")
         logger.info(f"输出目录: {self.output_dir}")
         logger.info("=" * 60)
 
