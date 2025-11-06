@@ -1,4 +1,0 @@
-音频文件: D:\NPU_works\语音\demo\ATCOSIM\WAVdata\zf3\zf3_02\zf3_02_001.wav
-识别文本: alitalia six four seven four seven four right heading three four zero
-音频时长: 3.09秒
-推理耗时: 0.361秒

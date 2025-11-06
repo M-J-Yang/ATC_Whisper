@@ -77,24 +77,28 @@ class WhisperInference:
 
             t_infer_start = time.time()
 
+            # 从配置文件读取推理参数
+            inference_config = self.config.get("inference", {})
+            generate_kwargs = {
+                "max_new_tokens": inference_config.get("max_length", 225),
+                "num_beams": 1,
+                "do_sample": False,
+                "early_stopping": True,
+                "temperature": inference_config.get("temperature", 0.0),
+            }
+
+            # 如果配置中有置信度阈值参数，则添加
+            if "logprob_threshold" in inference_config:
+                generate_kwargs["logprob_threshold"] = inference_config["logprob_threshold"]
+            if "no_speech_threshold" in inference_config:
+                generate_kwargs["no_speech_threshold"] = inference_config["no_speech_threshold"]
+
             with torch.inference_mode():
                 if self.device.type == "cuda":
                     with torch.cuda.amp.autocast():
-                        pred_ids = self.model.generate(
-                            input_features,
-                            max_new_tokens=self.config["inference"].get("max_length", 225),
-                            num_beams=1,
-                            do_sample=False,
-                            early_stopping=True,
-                        )
+                        pred_ids = self.model.generate(input_features, **generate_kwargs)
                 else:
-                    pred_ids = self.model.generate(
-                        input_features,
-                        max_new_tokens=self.config["inference"].get("max_length", 225),
-                        num_beams=1,
-                        do_sample=False,
-                        early_stopping=True,
-                    )
+                    pred_ids = self.model.generate(input_features, **generate_kwargs)
 
             t_infer_end = time.time()
             text = self.processor.batch_decode(pred_ids, skip_special_tokens=True)[0].strip()
@@ -122,7 +126,15 @@ class WhisperInference:
 
         except Exception as e:
             logger.error(f"转录失败 {audio_path}: {e}")
-            return {"text": "", "duration": 0, "audio_path": audio_path, "error": str(e)}
+            return {
+                "text": "",
+                "duration": 0,
+                "audio_path": audio_path,
+                "inference_time": 0,
+                "total_time": 0,
+                "rtf": None,
+                "error": str(e)
+            }
 
     def transcribe_batch(self, audio_paths: List[str], language: str = "en") -> List[Dict]:
         # 算法描述: 顺序批量推理，时间复杂度 O(n)，空间复杂度 O(h)
@@ -171,24 +183,28 @@ class WhisperInference:
                 # 直接使用预处理好的input_features
                 input_features = torch.tensor(item["input_features"], dtype=torch.float32).unsqueeze(0).to(self.device)
 
+                # 从配置文件读取推理参数
+                inference_config = self.config.get("inference", {})
+                generate_kwargs = {
+                    "max_new_tokens": inference_config.get("max_length", 225),
+                    "num_beams": 1,
+                    "do_sample": False,
+                    "early_stopping": True,
+                    "temperature": inference_config.get("temperature", 0.0),
+                }
+
+                # 如果配置中有置信度阈值参数，则添加
+                if "logprob_threshold" in inference_config:
+                    generate_kwargs["logprob_threshold"] = inference_config["logprob_threshold"]
+                if "no_speech_threshold" in inference_config:
+                    generate_kwargs["no_speech_threshold"] = inference_config["no_speech_threshold"]
+
                 with torch.inference_mode():
                     if self.device.type == "cuda":
                         with torch.cuda.amp.autocast():
-                            pred_ids = self.model.generate(
-                                input_features,
-                                max_new_tokens=self.config["inference"].get("max_length", 225),
-                                num_beams=1,
-                                do_sample=False,
-                                early_stopping=True,
-                            )
+                            pred_ids = self.model.generate(input_features, **generate_kwargs)
                     else:
-                        pred_ids = self.model.generate(
-                            input_features,
-                            max_new_tokens=self.config["inference"].get("max_length", 225),
-                            num_beams=1,
-                            do_sample=False,
-                            early_stopping=True,
-                        )
+                        pred_ids = self.model.generate(input_features, **generate_kwargs)
 
                 t_infer_end = time.time()
                 text = self.processor.batch_decode(pred_ids, skip_special_tokens=True)[0].strip()

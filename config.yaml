@@ -73,6 +73,19 @@ inference:
   task: "transcribe"
   temperature: 0.0
 
+  # 置信度阈值参数（减少幻觉识别）
+  # logprob_threshold: 对数概率阈值，过滤低置信度输出
+  #   - 默认值: -1.0 (较宽松)
+  #   - 改为 -0.5: 更严格 (过滤更多低置信度)
+  #   - 改为 0.0: 最严格 (只保留高置信度)
+  logprob_threshold: -1.0
+
+  # no_speech_threshold: 无语音检测阈值 (关键参数！)
+  #   - 默认值: 0.6 (中等严格)
+  #   - 改为 0.7-0.8: 更容易检测无语音区间，减少幻觉
+  #   - 0.8+: 最激进，强制检测无语音（可能漏掉小声说话）
+  no_speech_threshold: 0.6
+
   # 实时处理
   chunk_length_s: 30  # 流式处理的块大小
   stride_length_s: 5

@@ -1,26 +1,39 @@
-# 输出和日志
-outputs/
-logs/
-*.log
-
-# 模型文件（太大）
-models/
-*.bin
-*.pt
-*.pth
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-.venv
-*.egg-info/
-dist/
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+Whisper/
+
+# PyTorch
+*.pth
+*.pt
+*.ckpt
+
+# Jupyter Notebook
+.ipynb_checkpoints
 
 # IDE
 .vscode/
@@ -29,16 +42,50 @@ build/
 *.swo
 *~
 
-# OS
+# Logs
+logs/
+*.log
+
+# Outputs
+outputs/
+uploads/
+backend/uploads/
+
+# Models (commented out - keep models in repo)
+# models/
+
+# Processed Data
+processed_data/
+!processed_data/.gitkeep
+
+# Temporary files
+*.tmp
+*.bak
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# 缓存
-.cache/
-.huggingface/
-.cache
+# Node.js / React
+frontend/node_modules/
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# 临时文件
-*.tmp
+# Test files
+test_*.py
+*_test.py
+
+# Temp inference results
+single_inference_result.txt
+
+# Windows reserved names
 nul
+con
+prn
+aux
+lpt*
+com*

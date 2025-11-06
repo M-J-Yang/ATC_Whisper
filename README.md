@@ -1,17 +1,76 @@
-# ATCOSIM 语音识别系统
+# ATC 语音识别系统
 
-完整的、生产级的空中交通管制(ATC)语音识别解决方案，使用Whisper模型和2张NVIDIA 4090 GPU。
+基于 Whisper 的航空交通管制 (ATC) 语音识别系统，支持命令行和 Web 界面两种使用方式。
 
 ## 📋 项目概述
 
 - **数据集**: ATCOSIM (10小时，10078条话语)
 - **模型**: OpenAI Whisper-base
-- **硬件**: 2张NVIDIA 4090 GPU (双GPU DDP训练)
-- **目标**: 平衡精度(WER ~45%)和推理速度
+- **使用方式**: 命令行 + Web 界面
+- **目标**: 平衡精度(WER ~45%)和推理速度(RTF ~0.12)
+
+## 📁 项目结构
+
+```
+demo/
+├── core/                      # 核心模块
+│   ├── inference.py          # Whisper 推理引擎
+│   ├── preprocess.py         # 数据预处理
+│   ├── train.py              # 模型训练
+│   └── atc_decoder.py        # ATC 词汇约束解码器
+├── backend/                  # Web 后端
+│   ├── app.py               # FastAPI 应用
+│   └── inference_service.py  # 推理服务
+├── frontend/                 # Web 前端
+│   └── src/components/      # React 组件
+├── scripts/                  # 命令行工具
+│   ├── inference_single.py  # 单条推理
+│   └── inference_interactive.py # 交互式推理
+├── models/                   # 模型文件
+├── config.yaml              # 配置文件
+└── start_all.ps1            # 一键启动
+```
+
+详细结构见 [FILE_STRUCTURE.md](FILE_STRUCTURE.md) 或 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 
 ## 🚀 快速开始
 
-### 1️⃣ 环境安装
+### 方式一：Web 应用（推荐）
+
+#### 1. 安装依赖
+```powershell
+.\install_dependencies.ps1
+```
+
+#### 2. 一键启动
+```powershell
+.\start_all.ps1
+```
+
+系统会自动启动后端 (http://localhost:8000) 和前端 (http://localhost:3000)
+
+#### 3. 使用界面
+1. 点击"加载模型"
+2. 选择推理方式：单条推理/实时识别
+3. 查看结果并导出
+
+详见 [README_WEB.md](README_WEB.md)
+
+### 方式二：命令行工具
+
+#### 单次推理
+```bash
+python scripts/inference_single.py
+```
+
+#### 交互式推理
+```bash
+python scripts/inference_interactive.py
+```
+
+### 方式三：训练模型
+
+#### 1️⃣ 环境安装
 
 ```bash
 # Python 3.10+
@@ -22,10 +81,10 @@ source venv/Scripts/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2️⃣ 数据预处理
+#### 2️⃣ 数据预处理
 
 ```bash
-python preprocess.py
+python core/preprocess.py
 ```
 
 **流程**:
@@ -49,26 +108,17 @@ outputs/processed_data/
     └── test_manifest.json
 ```
 
-### 3️⃣ 模型训练
+#### 3️⃣ 模型训练
 
-#### 基础训练 (冻结编码器，仅微调解码器)
 ```bash
-python train.py
-```
+# 基础训练
+python core/train.py
 
-#### 解冻编码器的最后N层
-```bash
-# 解冻最后2层编码器
-python train.py --unfreeze-encoder-layers 2
+# 解冻最后N层编码器
+python core/train.py --unfreeze-encoder-layers 2
 
-# 解冻所有编码器层（全量微调）
-python train.py --unfreeze-encoder-layers -1
-```
-
-#### 使用Adapter层（参数高效）
-```bash
-# 仅微调轻量级Adapter层，大幅减少参数量
-python train.py --use-adapter true
+# 使用Adapter层
+python core/train.py --use-adapter true
 ```
 
 **特点**:
@@ -100,31 +150,30 @@ outputs/
     └── checkpoint-*/ (中间检查点)
 ```
 
-### 4️⃣ 推理和评估
+#### 4️⃣ 推理和评估
 
-#### 单个文件推理
+使用核心推理引擎：
 ```bash
-python inference.py \
-    --model_path outputs/models/final_model \
+# 单个文件推理
+python core/inference.py \
+    --model_path models/final_model \
     --audio_path /path/to/audio.wav
-```
 
-#### 带ATC词表约束的推理
-```bash
-# 使用ATC词表约束，提高域特定精度
-python inference.py \
-    --model_path outputs/models/final_model \
-    --audio_path /path/to/audio.wav \
-    --vocab_constraint "ATCOSIM/TXTdata/wordlist.txt"
-```
-
-#### 整个测试集评估
-```bash
-python inference.py \
-    --model_path outputs/models/final_model \
-    --dataset_dir outputs/processed_data \
+# 整个测试集评估
+python core/inference.py \
+    --model_path models/final_model \
+    --dataset_dir processed_data \
     --split test \
     --output_dir outputs/results
+```
+
+或使用命令行工具（更方便）：
+```bash
+# 单条推理
+python scripts/inference_single.py
+
+# 交互式推理
+python scripts/inference_interactive.py
 ```
 
 #### 评估带词表约束（用于对比）

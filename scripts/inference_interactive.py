@@ -3,9 +3,14 @@
 加载模型一次后，可以连续推理多个音频文件
 """
 
-import logging
+import sys
 from pathlib import Path
-from inference_service import get_service
+
+# 添加项目根目录到路径
+sys.path.append(str(Path(__file__).parent.parent))
+
+import logging
+from backend.inference_service import get_service
 
 logging.basicConfig(
     level=logging.INFO,
