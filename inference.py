@@ -46,15 +46,7 @@ class WhisperInference:
         self.model.to(self.device)
         self.model.eval()
 
-        # 预缓存 forced_decoder_ids
-        self._forced_decoder_cache = {}
         logger.info("模型加载完成 ✅")
-
-    def _get_forced_decoder_ids(self, language: str):
-        # 算法描述: 缓存语言prompt，时间复杂度 O(1)，空间复杂度 O(h)
-        if language not in self._forced_decoder_cache:
-            self._forced_decoder_cache[language] = self.processor.get_decoder_prompt_ids(language=language, task="transcribe")
-        return self._forced_decoder_cache[language]
 
     def _apply_vocab_constraint(self, text: str, vocab_constraint: set) -> str:
         # 算法描述: 词汇约束过滤，时间复杂度 O(n)，空间复杂度 O(h)
@@ -83,7 +75,6 @@ class WhisperInference:
             inputs = self.processor(audio_np, sampling_rate=sr, return_tensors="pt")
             input_features = inputs.input_features.to(self.device)
 
-            forced_decoder_ids = self._get_forced_decoder_ids(language)
             t_infer_start = time.time()
 
             with torch.inference_mode():
@@ -91,7 +82,6 @@ class WhisperInference:
                     with torch.cuda.amp.autocast():
                         pred_ids = self.model.generate(
                             input_features,
-                            forced_decoder_ids=forced_decoder_ids,
                             max_new_tokens=self.config["inference"].get("max_length", 225),
                             num_beams=1,
                             do_sample=False,
@@ -100,7 +90,6 @@ class WhisperInference:
                 else:
                     pred_ids = self.model.generate(
                         input_features,
-                        forced_decoder_ids=forced_decoder_ids,
                         max_new_tokens=self.config["inference"].get("max_length", 225),
                         num_beams=1,
                         do_sample=False,
@@ -109,6 +98,10 @@ class WhisperInference:
 
             t_infer_end = time.time()
             text = self.processor.batch_decode(pred_ids, skip_special_tokens=True)[0].strip()
+
+            # 记录生成的token数量用于调试
+            num_tokens = pred_ids.shape[1]
+            logger.info(f"生成了 {num_tokens} 个tokens，耗时 {t_infer_end - t_infer_start:.3f}s")
 
             if vocab_constraint:
                 text = self._apply_vocab_constraint(text, vocab_constraint)
