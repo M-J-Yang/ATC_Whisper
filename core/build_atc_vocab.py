@@ -9,6 +9,7 @@ from pathlib import Path
 from collections import Counter
 import json
 import re
+import yaml
 
 # 手动定义的ATC标准词汇 - 这是基础词汇库
 ATC_STANDARD_VOCAB = {
@@ -187,11 +188,24 @@ def save_vocab_resources(vocab_set, standard_vocab, extracted_words, output_dir=
     with open(output_dir / 'extracted_vocab_freq.json', 'w', encoding='utf-8') as f:
         json.dump(dict(top_extracted), f, ensure_ascii=False, indent=2)
 
+    # 5. 保存YAML格式的配置文件（供train_with_vocab_constraint.py使用）
+    vocab_config = {
+        'vocabulary_constraints': {}
+    }
+    for category, words in standard_vocab.items():
+        vocab_config['vocabulary_constraints'][category] = {
+            'words': words
+        }
+
+    with open(output_dir / 'atc_vocab_config.yaml', 'w', encoding='utf-8') as f:
+        yaml.dump(vocab_config, f, allow_unicode=True, default_flow_style=False)
+
     print(f"\n✅ 词汇资源已保存到 {output_dir}:")
     print(f"   📄 atc_vocab.txt - 完整词表 ({len(vocab_set)} 词)")
     print(f"   📄 atc_vocab_classified.json - 分类词汇")
     print(f"   📄 vocab_stats.json - 词汇统计")
     print(f"   📄 extracted_vocab_freq.json - TOP100频繁词")
+    print(f"   📄 atc_vocab_config.yaml - 训练配置")
 
     return output_dir
 
