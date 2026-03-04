@@ -1,0 +1,679 @@
+{
+  "metrics": {
+    "wer": 0.6547619047619048,
+    "cer": 0.2685025817555938,
+    "num_samples": 83,
+    "speaker_wers": {
+      "unknown": 0.6547619047619048
+    },
+    "speaker_cers": {
+      "unknown": 0.2685025817555938
+    }
+  },
+  "results": [
+    {
+      "text": "云高和能见度5线",
+      "reference_text": "云高和能见度无限",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 2.3108997344970703,
+      "sample_index": 0
+    },
+    {
+      "text": "好天气",
+      "reference_text": "好天气",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.6619603633880615,
+      "sample_index": 1
+    },
+    {
+      "text": "呃避空",
+      "reference_text": "呃碧空",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8006610870361328,
+      "sample_index": 2
+    },
+    {
+      "text": "天气不清了",
+      "reference_text": "天气不晴朗",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7933590412139893,
+      "sample_index": 3
+    },
+    {
+      "text": "请求天气情况",
+      "reference_text": "请求天气情况",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7769448757171631,
+      "sample_index": 4
+    },
+    {
+      "text": "请求航路预报",
+      "reference_text": "请求航路预报",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9770221710205078,
+      "sample_index": 5
+    },
+    {
+      "text": "下2个小时不会转好",
+      "reference_text": "下两个小时不会转好",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0117230415344238,
+      "sample_index": 6
+    },
+    {
+      "text": "天气情况逐渐转好",
+      "reference_text": "天气情况逐渐转好",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0935332775115967,
+      "sample_index": 7
+    },
+    {
+      "text": "4018跑道02右地面风30度",
+      "reference_text": "4018跑道02右地面风30度",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.1336114406585693,
+      "sample_index": 8
+    },
+    {
+      "text": "2到6米每秒能见度6公里场压710",
+      "reference_text": "26米每秒能见度6公里场压710",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.4939422607421875,
+      "sample_index": 9
+    },
+    {
+      "text": "4018高度12通场",
+      "reference_text": "4018高度12通场",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8880963325500488,
+      "sample_index": 10
+    },
+    {
+      "text": "进台上空加入右起落4018场五边着陆",
+      "reference_text": "近台上空加入右起落4018长五边着落",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.4485547542572021,
+      "sample_index": 11
+    },
+    {
+      "text": "4018起飞15分计换航线",
+      "reference_text": "4018起飞15分计计划航线",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.366485357284546,
+      "sample_index": 12
+    },
+    {
+      "text": "直线爬升场高900",
+      "reference_text": "直线爬升场高900",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0075337886810303,
+      "sample_index": 13
+    },
+    {
+      "text": "左转普江上标高4过",
+      "reference_text": "左转浦江上标高45",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.1592521667480469,
+      "sample_index": 14
+    },
+    {
+      "text": "联系成都进近频率1192我",
+      "reference_text": "联系成都近进频率11925",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.2513272762298584,
+      "sample_index": 15
+    },
+    {
+      "text": "加速滑行",
+      "reference_text": "加速滑行",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7804069519042969,
+      "sample_index": 16
+    },
+    {
+      "text": "太强弯",
+      "reference_text": "抬前轮",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8322873115539551,
+      "sample_index": 17
+    },
+    {
+      "text": "两点姿势大",
+      "reference_text": "两点姿势大",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9228816032409668,
+      "sample_index": 18
+    },
+    {
+      "text": "保持方向不要偏左",
+      "reference_text": "保持方向不要偏左",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.969447135925293,
+      "sample_index": 19
+    },
+    {
+      "text": "带杆带杆上升高度",
+      "reference_text": "带杆带杆上升高度",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.2877273559570312,
+      "sample_index": 20
+    },
+    {
+      "text": "稳干正爽",
+      "reference_text": "稳杆增速",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8733782768249512,
+      "sample_index": 21
+    },
+    {
+      "text": "下滑线太高",
+      "reference_text": "下滑线太高",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8902356624603271,
+      "sample_index": 22
+    },
+    {
+      "text": "下滑点靠前",
+      "reference_text": "下滑点靠前",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9111018180847168,
+      "sample_index": 23
+    },
+    {
+      "text": "检查下滑速度",
+      "reference_text": "检查下滑速度",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9574241638183594,
+      "sample_index": 24
+    },
+    {
+      "text": "拉开始动作融合",
+      "reference_text": "拉开始动作柔和",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9169774055480957,
+      "sample_index": 25
+    },
+    {
+      "text": "看地面",
+      "reference_text": "看地面",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.660836935043335,
+      "sample_index": 26
+    },
+    {
+      "text": "注意状态",
+      "reference_text": "注意状态",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.795701265335083,
+      "sample_index": 27
+    },
+    {
+      "text": "加油们",
+      "reference_text": "加油门",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.5984072685241699,
+      "sample_index": 28
+    },
+    {
+      "text": "收油门收光油门",
+      "reference_text": "收油门收光油门",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0166282653808594,
+      "sample_index": 29
+    },
+    {
+      "text": "Wangan",
+      "reference_text": "稳杆",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.6199400424957275,
+      "sample_index": 30
+    },
+    {
+      "text": "送干",
+      "reference_text": "松杆",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.600294828414917,
+      "sample_index": 31
+    },
+    {
+      "text": "Thank you",
+      "reference_text": "带杆",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.627507209777832,
+      "sample_index": 32
+    },
+    {
+      "text": "应改",
+      "reference_text": "迎杆",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.6222677230834961,
+      "sample_index": 33
+    },
+    {
+      "text": "丁改",
+      "reference_text": "顶杆",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.6664059162139893,
+      "sample_index": 34
+    },
+    {
+      "text": "放平多上左多",
+      "reference_text": "放平舵上左舵",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8384504318237305,
+      "sample_index": 35
+    },
+    {
+      "text": "停止起飞",
+      "reference_text": "停止起飞",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7912619113922119,
+      "sample_index": 36
+    },
+    {
+      "text": "中段起飞注意障碍物",
+      "reference_text": "中断起飞注意障碍物",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.13189697265625,
+      "sample_index": 37
+    },
+    {
+      "text": "安检",
+      "reference_text": "安检",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.674353837966919,
+      "sample_index": 38
+    },
+    {
+      "text": "换人",
+      "reference_text": "换人",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.6795995235443115,
+      "sample_index": 39
+    },
+    {
+      "text": "关车报告",
+      "reference_text": "关车报告",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7857832908630371,
+      "sample_index": 40
+    },
+    {
+      "text": "如果收到的话",
+      "reference_text": "如收到的话",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7378559112548828,
+      "sample_index": 41
+    },
+    {
+      "text": "窑洞机翼",
+      "reference_text": "摇动机翼",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9000427722930908,
+      "sample_index": 42
+    },
+    {
+      "text": "如收到的话",
+      "reference_text": "如收到的话",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7357876300811768,
+      "sample_index": 43
+    },
+    {
+      "text": "闪亮着陆灯请求紧急下降优先着陆",
+      "reference_text": "闪亮着陆灯请求紧急下降优先着陆",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.7288436889648438,
+      "sample_index": 44
+    },
+    {
+      "text": "立刻靠啥",
+      "reference_text": "立即跳伞",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8392560482025146,
+      "sample_index": 45
+    },
+    {
+      "text": "立即着陆",
+      "reference_text": "立即着陆",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7843353748321533,
+      "sample_index": 46
+    },
+    {
+      "text": "好区必要由量立即着陆",
+      "reference_text": "耗去必要油量立即着陆",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.2111802101135254,
+      "sample_index": 47
+    },
+    {
+      "text": "中弯起飞",
+      "reference_text": "中断起飞",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8344173431396484,
+      "sample_index": 48
+    },
+    {
+      "text": "发动机故障发动机停车",
+      "reference_text": "发动机故障发动机停车",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.2086341381072998,
+      "sample_index": 49
+    },
+    {
+      "text": "试试空中开车",
+      "reference_text": "试试空中开车",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0128083229064941,
+      "sample_index": 50
+    },
+    {
+      "text": "到高度2000",
+      "reference_text": "到高度2000",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7349855899810791,
+      "sample_index": 51
+    },
+    {
+      "text": "到高度2000还未开成就跳伞",
+      "reference_text": "到高度2000还未开成就跳伞",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.2184312343597412,
+      "sample_index": 52
+    },
+    {
+      "text": "不放襟翼和起落架的下滑速度是317",
+      "reference_text": "不放襟翼和起落架的下滑速度是317",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.684682846069336,
+      "sample_index": 53
+    },
+    {
+      "text": "公里每小时",
+      "reference_text": "公里每小时",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7752923965454102,
+      "sample_index": 54
+    },
+    {
+      "text": "抛掉座舱盖",
+      "reference_text": "抛掉座舱盖",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.03633713722229,
+      "sample_index": 55
+    },
+    {
+      "text": "然有严重泄露",
+      "reference_text": "燃油严重泄漏",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0126643180847168,
+      "sample_index": 56
+    },
+    {
+      "text": "发动机着火",
+      "reference_text": "发动机着火",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7937331199645996,
+      "sample_index": 57
+    },
+    {
+      "text": "左起落架位放好",
+      "reference_text": "左起落架未放好",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9573650360107422,
+      "sample_index": 58
+    },
+    {
+      "text": "机上着火我正在破降",
+      "reference_text": "机上着火我正在迫降",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.031240463256836,
+      "sample_index": 59
+    },
+    {
+      "text": "左起落架备放好",
+      "reference_text": "左起落架未放好",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0196127891540527,
+      "sample_index": 60
+    },
+    {
+      "text": "剩油警告灯亮",
+      "reference_text": "剩油警告灯亮",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9728379249572754,
+      "sample_index": 61
+    },
+    {
+      "text": "单发飞行",
+      "reference_text": "单发飞行",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7789201736450195,
+      "sample_index": 62
+    },
+    {
+      "text": "发动机拉烟",
+      "reference_text": "发动机拉烟",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8574416637420654,
+      "sample_index": 63
+    },
+    {
+      "text": "请求投掉复游箱",
+      "reference_text": "请求投掉副油箱",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0738258361816406,
+      "sample_index": 64
+    },
+    {
+      "text": "轮子放不下",
+      "reference_text": "轮子放不下",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8523423671722412,
+      "sample_index": 65
+    },
+    {
+      "text": "检查速度",
+      "reference_text": "检查速度",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7744443416595459,
+      "sample_index": 66
+    },
+    {
+      "text": "Hello,本场场压",
+      "reference_text": "好的本场场压",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9162569046020508,
+      "sample_index": 67
+    },
+    {
+      "text": "73327332温度5度温度5度",
+      "reference_text": "7332 7332温度5度温度5度",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.3857572078704834,
+      "sample_index": 68
+    },
+    {
+      "text": "呃50度风35米",
+      "reference_text": "呃50度风35米",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8975493907928467,
+      "sample_index": 69
+    },
+    {
+      "text": "He can only do about a half公里",
+      "reference_text": "地面能见度大于两公里",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.0323638916015625,
+      "sample_index": 70
+    },
+    {
+      "text": "I'll be over",
+      "reference_text": "完毕",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7191882133483887,
+      "sample_index": 71
+    },
+    {
+      "text": "7332进跑道",
+      "reference_text": "7332进跑道",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.854705810546875,
+      "sample_index": 72
+    },
+    {
+      "text": "35米着陆方向由西向东",
+      "reference_text": "35米着陆方向由西向东",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.1260664463043213,
+      "sample_index": 73
+    },
+    {
+      "text": "好的着陆方向由西向东我落地以后不用加油你给我来个停车",
+      "reference_text": "好的着陆方向由西向东我落地以后不用加油你给我来个停车",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.9060449600219727,
+      "sample_index": 74
+    },
+    {
+      "text": "啊下站联系1900",
+      "reference_text": "啊下站联系1900",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9492573738098145,
+      "sample_index": 75
+    },
+    {
+      "text": "好嘞一会见",
+      "reference_text": "好的一会见",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.8519325256347656,
+      "sample_index": 76
+    },
+    {
+      "text": "You're a jack",
+      "reference_text": "一会见",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7225139141082764,
+      "sample_index": 77
+    },
+    {
+      "text": "Your call, Webana",
+      "reference_text": "17进跑道",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7896771430969238,
+      "sample_index": 78
+    },
+    {
+      "text": "可以进跑道",
+      "reference_text": "可以进跑道",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.7115683555603027,
+      "sample_index": 79
+    },
+    {
+      "text": "前面方向由西向东",
+      "reference_text": "起飞方向由西向东",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.9670929908752441,
+      "sample_index": 80
+    },
+    {
+      "text": "No class",
+      "reference_text": "17",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 0.5960292816162109,
+      "sample_index": 81
+    },
+    {
+      "text": "好的你现在可以继续下到场高12",
+      "reference_text": "好的你现在可以继续下到我场高12",
+      "speaker_id": "unknown",
+      "duration": NaN,
+      "inference_time": 1.2637500762939453,
+      "sample_index": 82
+    }
+  ]
+}

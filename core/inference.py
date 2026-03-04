@@ -26,20 +26,34 @@ logger = logging.getLogger(__name__)
 class WhisperInference:
     """Whisper推理引擎（单条推理高效优化版）"""
 
-    def __init__(self, model_path: str, config_path: str = "config.yaml", device: str = "cuda"):
+    def __init__(self, model_path: str, config_path: str = None, device: str = "cuda"):
         # 算法描述: 初始化模型与处理器，时间复杂度 O(1)，空间复杂度 O(h)
+        if config_path is None:
+            config_path = Path("config.yaml")
+            if not config_path.exists():
+                config_path = Path(__file__).parent.parent / "config.yaml"
+            config_path = str(config_path)
+
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = yaml.safe_load(f)
 
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
-        self.model_path = Path(model_path)
 
-        logger.info(f"加载模型: {model_path}")
+        # 处理路径：支持相对路径和绝对路径
+        model_path_obj = Path(model_path)
+        if not model_path_obj.is_absolute():
+            model_path_obj = model_path_obj.resolve()
+        self.model_path = str(model_path_obj)
+
+        logger.info(f"加载模型: {self.model_path}")
         logger.info(f"设备: {self.device}")
 
+        if not Path(self.model_path).exists():
+            raise FileNotFoundError(f"模型路径不存在: {self.model_path}")
+
         # 加载模型和处理器
-        self.processor = WhisperProcessor.from_pretrained(str(self.model_path))
-        self.model = WhisperForConditionalGeneration.from_pretrained(str(self.model_path))
+        self.processor = WhisperProcessor.from_pretrained(self.model_path)
+        self.model = WhisperForConditionalGeneration.from_pretrained(self.model_path)
 
         if self.device.type == "cuda":
             self.model.half()  # FP16 推理加速
@@ -49,12 +63,26 @@ class WhisperInference:
         logger.info("模型加载完成 ✅")
 
     def _apply_vocab_constraint(self, text: str, vocab_constraint: set) -> str:
-        # 算法描述: 词汇约束过滤，时间复杂度 O(n)，空间复杂度 O(h)
+        # 算法描述: 词汇约束过滤（改进版），使用编辑距离找最接近的词汇
+        import difflib
         words = text.lower().split()
         constrained = []
+
         for w in words:
-            cw = "".join(c for c in w if c.isalnum())
-            constrained.append(w if w in vocab_constraint or cw in vocab_constraint else "<unk>")
+            # 清除标点符号
+            clean_w = "".join(c for c in w if c.isalnum())
+
+            if clean_w in vocab_constraint:
+                constrained.append(w)
+            else:
+                # 如果不在词汇表中，找最接近的词汇（编辑距离）
+                matches = difflib.get_close_matches(clean_w, vocab_constraint, n=1, cutoff=0.6)
+                if matches:
+                    constrained.append(matches[0])
+                else:
+                    # 如果没有接近的匹配，保留原词
+                    constrained.append(w)
+
         return " ".join(constrained)
 
     def transcribe_file(self, audio_path: str, language: str = "en", vocab_constraint: Optional[set] = None) -> Dict[str, any]:
@@ -239,13 +267,29 @@ class WhisperInference:
 class WhisperEvaluator:
     """评估模块：计算WER/CER并保存报告"""
 
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = None):
         # 算法描述: 初始化评估器，时间复杂度 O(1)，空间复杂度 O(h)
+        if config_path is None:
+            config_path = Path("config.yaml")
+            if not config_path.exists():
+                config_path = Path(__file__).parent.parent / "config.yaml"
+            config_path = str(config_path)
+
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = yaml.safe_load(f)
         self.wer_metric = evaluate.load("wer")
         self.cer_metric = evaluate.load("cer")
         logger.info("评估器加载完成 ✅")
+
+    def compute_sample_cer(self, pred: str, ref: str) -> float:
+        """计算单个样本的CER"""
+        if not ref:
+            return 0.0 if not pred else 1.0
+        # 计算编辑距离（字符级别）
+        from difflib import SequenceMatcher
+        matcher = SequenceMatcher(None, ref, pred)
+        ratio = matcher.ratio()
+        return 1.0 - ratio
 
     def compute_wer(self, preds: List[str], refs: List[str]) -> float:
         # 算法描述: 计算WER，时间复杂度 O(n)，空间复杂度 O(h)
@@ -259,11 +303,17 @@ class WhisperEvaluator:
         # 算法描述: 汇总评估结果，时间复杂度 O(n)，空间复杂度 O(h)
         preds = [r["text"] for r in results if "text" in r]
         refs = [r["reference_text"] for r in results if "reference_text" in r]
+
+        if not preds or not refs:
+            logger.warning("预测或参考文本为空，无法计算指标")
+            return {"wer": 0, "cer": 0, "num_samples": 0, "speaker_wers": {}, "speaker_cers": {}}
+
         wer = self.compute_wer(preds, refs)
         cer = self.compute_cer(preds, refs)
 
         speaker_wers = {}
-        if "speaker_id" in results[0]:
+        speaker_cers = {}
+        if results and "speaker_id" in results[0]:
             speakers = {}
             for r in results:
                 sid = r.get("speaker_id", "unknown")
@@ -271,9 +321,11 @@ class WhisperEvaluator:
                 speakers[sid]["pred"].append(r.get("text", ""))
                 speakers[sid]["ref"].append(r.get("reference_text", ""))
             for sid, data in speakers.items():
-                speaker_wers[sid] = self.compute_wer(data["pred"], data["ref"])
+                if data["pred"] and data["ref"]:
+                    speaker_wers[sid] = self.compute_wer(data["pred"], data["ref"])
+                    speaker_cers[sid] = self.compute_cer(data["pred"], data["ref"])
 
-        return {"wer": wer, "cer": cer, "num_samples": len(preds), "speaker_wers": speaker_wers}
+        return {"wer": wer, "cer": cer, "num_samples": len(preds), "speaker_wers": speaker_wers, "speaker_cers": speaker_cers}
 
     def print_results(self, results: List[Dict], max_samples: int = 10):
         # 算法描述: 打印样本，时间复杂度 O(n)，空间复杂度 O(1)
@@ -284,6 +336,11 @@ class WhisperEvaluator:
             logger.info(f"预测: {r.get('text', '')}")
             if "speaker_id" in r:
                 logger.info(f"说话人: {r['speaker_id']}")
+            # 计算并显示该样本的CER
+            ref = r.get('reference_text', '')
+            pred = r.get('text', '')
+            sample_cer = self.compute_sample_cer(pred, ref)
+            logger.info(f"字符错误率(CER): {sample_cer:.2%}")
         logger.info("=" * 100)
 
     def save_results(self, results: List[Dict], output_path: str):
@@ -309,28 +366,70 @@ class WhisperEvaluator:
         logger.info("评估摘要")
         logger.info("=" * 60)
         logger.info(f"样本数: {metrics['num_samples']}")
-        logger.info(f"WER: {metrics['wer']:.2%}")
-        logger.info(f"CER: {metrics['cer']:.2%}")
-        if metrics["speaker_wers"]:
-            logger.info("\n按说话人:")
+        logger.info(f"WER (词错误率): {metrics['wer']:.2%}")
+        logger.info(f"CER (字符错误率): {metrics['cer']:.2%}")
+
+        if metrics.get("speaker_wers"):
+            logger.info("\n按说话人 - WER:")
             for sid, wer in sorted(metrics["speaker_wers"].items()):
-                logger.info(f"  {sid}: {wer:.2%}")
+                cer = metrics.get("speaker_cers", {}).get(sid, 0)
+                logger.info(f"  {sid}: WER={wer:.2%}, CER={cer:.2%}")
+
         logger.info(f"\n报告输出目录: {out_dir}")
 
 
 def main():
     """主函数 - 演示推理与评估"""
     import argparse
+
+    # 先加载配置文件以获取默认值
+    # 查找config.yaml：优先当前目录，再查找父目录
+    config_path = Path("config.yaml")
+    if not config_path.exists():
+        config_path = Path(__file__).parent.parent / "config.yaml"
+
+    if not config_path.exists():
+        logger.warning("找不到 config.yaml，使用命令行参数或默认值")
+        config = {}
+    else:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+    default_model_path = config.get("single_wav", {}).get("model_path")
+
+    # 从config获取默认值
+    default_audio_path = config.get("single_wav", {}).get("path")
+    default_dataset_dir = config.get("data", {}).get("dataset_dir")
+    default_processed_dataset_dir = config.get("data", {}).get("processed_dataset_dir")
+
     parser = argparse.ArgumentParser(description="Whisper 高效推理与评估")
-    parser.add_argument("--model_path", type=str, required=True)
-    parser.add_argument("--audio_path", type=str)
-    parser.add_argument("--dataset_dir", type=str)
+    parser.add_argument("--model_path", type=str, default=default_model_path,
+                        help=f"模型路径（默认从config.yaml读取：{default_model_path}）")
+    parser.add_argument("--audio_path", type=str, default=None,
+                        help=f"单条音频文件路径")
+    parser.add_argument("--dataset_dir", type=str, default=None,
+                        help=f"数据集目录（原始数据或预处理数据）")
     parser.add_argument("--split", type=str, default="test")
     parser.add_argument("--output_dir", type=str, default="./results")
     parser.add_argument("--vocab_constraint", type=str)
     parser.add_argument("--use_processed", action="store_true", help="使用预处理后的数据集（input_features）")
     parser.add_argument("--language", type=str, default="en", help="语言代码")
     args = parser.parse_args()
+
+    # 检查model_path是否存在
+    if not args.model_path:
+        parser.error("--model_path 必须通过命令行提供或在 config.yaml 中设置")
+
+    # 如果没有指定任何路径，使用config中的默认值
+    if not args.dataset_dir and not args.audio_path:
+        if args.use_processed and default_processed_dataset_dir:
+            args.dataset_dir = default_processed_dataset_dir
+        else:
+            args.audio_path = default_audio_path
+            args.dataset_dir = default_dataset_dir
+    # 如果指定了 --use_processed 但没有指定 --dataset_dir，自动使用处理后的数据路径
+    elif args.use_processed and not args.dataset_dir and default_processed_dataset_dir:
+        args.dataset_dir = default_processed_dataset_dir
 
     vocab_constraint = None
     if args.vocab_constraint and Path(args.vocab_constraint).exists():
@@ -342,10 +441,12 @@ def main():
     evaluator = WhisperEvaluator()
 
     if args.audio_path:
+        logger.info(f"推理单条音频: {args.audio_path}")
         result = infer.transcribe_file(args.audio_path, vocab_constraint=vocab_constraint)
         logger.info(f"\n预测文本: {result['text']}")
         logger.info(f"耗时: {result['inference_time']:.3f}s, RTF={result['rtf']:.3f}")
     elif args.dataset_dir:
+        logger.info(f"推理数据集: {args.dataset_dir} (split={args.split})")
         if args.use_processed:
             # 使用预处理后的数据集
             results = infer.transcribe_processed_dataset(args.dataset_dir, args.split, args.language)
@@ -355,6 +456,11 @@ def main():
         metrics = evaluator.evaluate_results(results)
         evaluator.print_results(results)
         evaluator.generate_report(results, metrics, args.output_dir)
+    else:
+        logger.warning("没有提供 --audio_path 或 --dataset_dir，且 config.yaml 中没有默认值")
+        logger.info("使用方法:")
+        logger.info("  单音频:  python inference.py --audio_path your_audio.wav")
+        logger.info("  数据集:  python inference.py --dataset_dir ./data --split test")
 
 
 if __name__ == "__main__":

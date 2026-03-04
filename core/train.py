@@ -71,9 +71,52 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         return batch
 
 # ======================================
+# 自定义 Trainer 类（强制中文语言）
+# ======================================
+class WhisperTrainer(Seq2SeqTrainer):
+    """自定义 Trainer，在生成时强制指定中文语言"""
+
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+        if prediction_loss_only:
+            return super().prediction_step(model, inputs, prediction_loss_only, ignore_keys)
+
+        # 准备生成输入
+        generation_inputs = self._prepare_inputs(inputs)
+
+        # 强制指定中文语言
+        gen_kwargs = {
+            "language": "<|zh|>",
+            "task": "transcribe",
+            "max_length": self.args.generation_max_length,
+            "num_beams": 1,
+        }
+
+        # 生成预测
+        with torch.no_grad():
+            generated_tokens = model.generate(
+                **generation_inputs,
+                **gen_kwargs
+            )
+
+        # 处理标签
+        if self.args.predict_with_generate:
+            pred_ids = generated_tokens
+        else:
+            pred_ids = inputs.get("decoder_input_ids")
+
+        label_ids = inputs.get("labels")
+
+        # 计算 loss
+        loss = None
+        if label_ids is not None:
+            loss = model(**inputs).loss
+
+        return loss, pred_ids, label_ids
+
+# ======================================
 # ✅ 1. 加载配置
 # ======================================
-CONFIG_PATH = "./config.yaml"
+CONFIG_PATH = "../config.yaml"
 import yaml
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
@@ -172,7 +215,7 @@ training_args = Seq2SeqTrainingArguments(
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
     gradient_accumulation_steps=gradient_accumulation_steps,
-    evaluation_strategy="epoch",
+    evaluation_strategy="no",  # 跳过评估，避免显存溢出
     save_strategy="epoch",
     learning_rate=learning_rate,
     weight_decay=weight_decay,
@@ -181,7 +224,7 @@ training_args = Seq2SeqTrainingArguments(
     logging_dir=os.path.join(output_dir, "logs"),
     logging_steps=100,
     save_total_limit=2,
-    predict_with_generate=True,  # ✅ 必须为 True 才能在评估时生成文本
+    predict_with_generate=False,
     fp16=True,
     gradient_checkpointing=False,
     dataloader_num_workers=int(config["system"]["num_workers"]),
@@ -204,7 +247,7 @@ logger.info(f"  - Epochs: {num_train_epochs}")
 # 创建 data collator
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
-trainer = Seq2SeqTrainer(
+trainer = WhisperTrainer(
     model=model,
     args=training_args,
     train_dataset=dataset["train"],
